@@ -40,15 +40,11 @@ module top(
         .clk_out2(vga_clk)
     );
       
-    /*ila_0 ila (
+    ila_0 ila (
         .clk(sys_clk),
-        .probe0(vga_clk),
-        .probe1(pixel),
-        .probe2(cam_pclk),
-        .probe3(cam_pixel_valid),
-        .probe4(cam_pixel_data),
-        .probe5(cam_din)
-    );*/
+        .probe0(cam_pixel_data),
+        .probe1(cam_rgb)
+    );
 
     CameraSetup CameraSetup (
         .clk_i(clk24), 
