@@ -3,6 +3,7 @@
 module top(
     input sys_clk, 
     input rst,
+    input enable,
     
     inout cam_siod_io,
     output cam_cfg_done, 
@@ -24,7 +25,7 @@ module top(
     wire clk24, vga_clk;
     
     wire cam_pixel_valid, cam_frame_done;
-    wire [23:0] cam_pixel_data;
+    wire [11:0] cam_pixel_data;
     wire [11:0] cam_rgb;
     wire [11:0] mem_out;
     
@@ -40,11 +41,11 @@ module top(
         .clk_out2(vga_clk)
     );
       
-    ila_0 ila (
+    /*ila_0 ila (
         .clk(sys_clk),
-        .probe0(cam_pixel_data),
-        .probe1(cam_rgb)
-    );
+        .probe0(cam_din),
+        .probe1(cam_pixel_data)
+    );*/
 
     CameraSetup CameraSetup (
         .clk_i(clk24), 
@@ -69,38 +70,29 @@ module top(
 	   .f_done(cam_frame_done)
     );
     
-    yuv2rgb yuv2rgb (
-        .clock(sys_clk),
-        .yuv_data(cam_pixel_data),
-        .rgb_data(cam_rgb)
-    );
-    
-    /*fifo_generator_0 fifo (
-        .rst(rst^cam_cfg_done),
-        .wr_clk(cam_pclk),
-        .rd_clk(vga_clk),
-        .din(cam_pixel_data),
-        .wr_en(cam_cfg_done & cam_pixel_valid),
-        .rd_en(display_area),
-        .dout(pixel)
-    );*/
-    
     blk_mem_gen_0 memory (
         .clka(cam_pclk),
         .ena(cam_cfg_done),
         .wea(cam_cfg_done & cam_pixel_valid),
         .addra(cam_pixel_counter),
-        .dina(cam_rgb),
+        .dina(cam_pixel_data),
         .clkb(vga_clk),
         .enb(display_area),
         .addrb(vpos*640+hpos),
         .doutb(mem_out)
     );
     
+    yuv2rgb yuv2rgb (
+        .enable(enable),
+        .clock(sys_clk),
+        .yuv_data(mem_out),
+        .rgb_data(cam_rgb)
+    );
+    
     vga_controller vga_control (
         .pixel_clock(vga_clk),
         .reset(rst),
-        .pixel_rgb(mem_out), 
+        .pixel_rgb(cam_rgb), 
         .h_sync(h_sync), 
         .v_sync(v_sync), 
         .display(display_area),
