@@ -4,13 +4,13 @@ module pixel_decoder(
 	input href,
 	input [7:0] data,
 	output reg p_valid = 0,
-	output [11:0] p_data,
+	output [23:0] p_data,
 	output reg f_done = 0
 );
 
     reg state = 0;
     reg [1:0] axis = 0;
-    reg [3:0] y, u, v;
+    reg [7:0] y, u, v;
 
     assign p_data = { y, u, v };
 	
@@ -24,13 +24,13 @@ module pixel_decoder(
                 axis <= axis + 1;
 				case (axis)
 				    0: 
-				        u = data[7:4];
+				        u = data;
 					1:
-					    y = data[7:4];
+					    y = data;
 					2:
-					    v = data[7:4];
+					    v = data;
 					3:
-					    y = data[7:4];
+					    y = data;
 			    endcase
 			end
 		end

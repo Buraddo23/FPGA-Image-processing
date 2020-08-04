@@ -3,7 +3,8 @@
 module top(
     input sys_clk, 
     input rst,
-    input enable,
+    input sel1,
+    input sel2,
     
     inout cam_siod_io,
     output cam_cfg_done, 
@@ -25,14 +26,21 @@ module top(
     wire clk24, vga_clk;
     
     wire cam_pixel_valid, cam_frame_done;
-    wire [11:0] cam_pixel_data;
-    wire [11:0] cam_rgb;
-    wire [11:0] mem_out;
+    wire [23:0] cam_pixel_data, dout;
+    wire [23:0] p1, p2, p3, p4, p5, p6, p7, p8, p9;
+    wire [11:0] cam_rgb, mem_out;
     
     wire [9:0] hpos, vpos;
     wire display_area;
     
+    wire [1:0] filter_sel;
+    wire grayscale;
+    wire [3:0] shift;
+    wire signed [3:0] kc_1, kc_2, kc_3, kc_4, kc_5, kc_6, kc_7, kc_8, kc_9;    
+    
     reg [18:0] cam_pixel_counter = 0, cpc = 0;
+    
+    assign filter_sel = {sel2, sel1};
     
     clk_wiz_0 clk_wiz_0 (
         .reset(~rst),
@@ -40,11 +48,19 @@ module top(
         .clk_out1(clk24),
         .clk_out2(vga_clk)
     );
-      
+    
+    oddr_0 oddr_0 (
+        .clk_in(clk24),
+        .clk_out(cam_xclk)
+    );
+    
     /*ila_0 ila (
         .clk(sys_clk),
-        .probe0(cam_din),
-        .probe1(cam_pixel_data)
+        .probe0(cam_pixel_data),
+        .probe1(cam_din),
+        .probe2(p1),
+        .probe3(p4),
+        .probe4(p7)
     );*/
 
     CameraSetup CameraSetup (
@@ -53,11 +69,6 @@ module top(
 		.done(cam_cfg_done), 
 		.sioc_o(cam_sioc_o), 
 		.siod_io(cam_siod_io)
-    );
- 
-    oddr_0 oddr_0 (
-        .clk_in(clk24),
-        .clk_out(cam_xclk)
     );
     
     pixel_decoder pixel_decoder (
@@ -70,29 +81,84 @@ module top(
 	   .f_done(cam_frame_done)
     );
     
+    buffer sh_reg(
+        .clk(cam_pixel_valid),
+        .reset(rst),
+        .din(cam_pixel_data),
+        .pixel_1(p1),
+        .pixel_2(p2),
+        .pixel_3(p3),
+        .pixel_4(p4),
+        .pixel_5(p5),
+        .pixel_6(p6),
+        .pixel_7(p7),
+        .pixel_8(p8),
+        .pixel_9(p9)
+    );
+    
+    filter_selector filter_selector(
+        .filter_sel(filter_sel),
+        .grayscale(grayscale),
+        .shift(shift),
+        .kc_1(kc_1),
+        .kc_2(kc_2),
+        .kc_3(kc_3),
+        .kc_4(kc_4),
+        .kc_5(kc_5),
+        .kc_6(kc_6),
+        .kc_7(kc_7),
+        .kc_8(kc_8),
+        .kc_9(kc_9)
+    );
+    
+    convolution conv(
+        .clk(sys_clk),
+        .reset(rst),
+        .shift(shift),
+        .grayscale(grayscale),
+        .kc_1(kc_1),
+        .kc_2(kc_2),
+        .kc_3(kc_3),
+        .kc_4(kc_4),
+        .kc_5(kc_5),
+        .kc_6(kc_6),
+        .kc_7(kc_7),
+        .kc_8(kc_8),
+        .kc_9(kc_9),
+        .pixel_1(p1),
+        .pixel_2(p2),
+        .pixel_3(p3),
+        .pixel_4(p4),
+        .pixel_5(p5),
+        .pixel_6(p6),
+        .pixel_7(p7),
+        .pixel_8(p8),
+        .pixel_9(p9),
+        .data_out(dout)
+    );
+    
+    yuv2rgb yuv2rgb (
+        .clock(sys_clk),
+        .yuv_data(dout),
+        .rgb_data(cam_rgb)
+    );
+    
     blk_mem_gen_0 memory (
         .clka(cam_pclk),
         .ena(cam_cfg_done),
-        .wea(cam_cfg_done & cam_pixel_valid),
+        .wea(cam_pixel_valid),
         .addra(cam_pixel_counter),
-        .dina(cam_pixel_data),
+        .dina(cam_rgb),
         .clkb(vga_clk),
         .enb(display_area),
         .addrb(vpos*640+hpos),
         .doutb(mem_out)
     );
     
-    yuv2rgb yuv2rgb (
-        .enable(enable),
-        .clock(sys_clk),
-        .yuv_data(mem_out),
-        .rgb_data(cam_rgb)
-    );
-    
     vga_controller vga_control (
         .pixel_clock(vga_clk),
         .reset(rst),
-        .pixel_rgb(cam_rgb), 
+        .pixel_rgb(mem_out), 
         .h_sync(h_sync), 
         .v_sync(v_sync), 
         .display(display_area),
